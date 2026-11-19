@@ -1,0 +1,6 @@
+toolchain/
+build/
+web-dist/
+private/
+*.apk
+*.idsig

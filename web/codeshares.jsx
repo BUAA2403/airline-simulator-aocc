@@ -1,0 +1,18 @@
+import React,{useState,useMemo} from 'react';
+import {ChevronDown,ArrowRight,Handshake} from 'lucide-react';
+import {buildTimetable} from './timetable.mjs';
+const money=n=>Number.isFinite(n)?`$${Math.round(n).toLocaleString('en-US')}`:'—';
+export function TrafficScope({snapshot,value,onChange,onFlight,flights,now}){
+ const [open,setOpen]=useState(false),[role,setRole]=useState('all');
+ const c=snapshot?.codeshares,partners=new Map((c?.partners||[]).map(p=>[p.id,p]));
+ const agreements=(c?.agreements||[]).filter(a=>role==='all'||a.role===role);
+ const timetable=useMemo(()=>open?buildTimetable([...snapshot?.flights||[],...c?.flights||[]],[...snapshot?.aircraft||[],...c?.aircraft||[]],[...snapshot?.airports||[],...c?.airports||[]]):[],[snapshot,open]);
+ return <section className="traffic-scope" aria-label="航班承运范围">
+  <div className="traffic-scope-bar"><div className="segmented" role="group" aria-label="显示航班范围">{[['all','全部航班'],['own','仅自营'],['shared','仅共享']].map(([id,label])=><button key={id} aria-pressed={value===id} className={value===id?'selected':''} onClick={()=>onChange(id)}>{label}</button>)}</div><button className="codeshare-toggle" aria-expanded={open} onClick={()=>setOpen(!open)}><Handshake size={15}/><span>共享合作</span><b>{c?.status==='available'?c.agreements.length:'—'}</b><ChevronDown size={14}/></button></div>
+  {snapshot&&c?.status!=='available'&&<div className="codeshare-unavailable">共享数据暂未接通，显示上次可用的自营班表。请同步数据后重试。</div>}
+  {open&&<div className="codeshare-agreements"><div className="codeshare-agreements-heading"><div><span className="eyebrow">CODESHARE PARTNERS</span><h2>共享航班合作</h2></div><select aria-label="共享合作类型" value={role} onChange={e=>setRole(e.target.value)}><option value="all">全部合作</option><option value="marketing">他航承运 · 我方挂号</option><option value="operating">我方承运 · 他航挂号</option></select></div><div className="table-scroll"><table className="data-table codeshare-table"><thead><tr><th>航段 / 共享号</th><th>合作航司</th><th>承运安排</th><th>周班次 / 机型</th><th>我方周计划收益</th><th/></tr></thead><tbody>{agreements.map(a=>{
+   const p=partners.get(a.role==='marketing'?a.operatingUid:a.marketingUid),legs=flights.filter(f=>f.scheduleId===a.operatingFlightId&&(a.role==='marketing'?f.isCodeshare:!f.isCodeshare)),future=legs.filter(f=>Date.parse(f.arrival)>+now).sort((x,y)=>Date.parse(x.departure)-Date.parse(y.departure)),target=future.find(f=>f.status==='airborne')||future[0]||legs[0],rows=timetable.filter(r=>r.scheduleKeys?.some(k=>k.startsWith(`${a.operatingFlightId}|`))),types=[...new Set(rows.map(r=>r.type.replace(/^(Airbus|Boeing)\s+/,'')))],numbers=[a.marketingOutboundFlightNumber,a.marketingInboundFlightNumber].filter(n=>n!==null&&n!==undefined&&Number(n)>=0).map(n=>`${a.role==='marketing'?snapshot.airline.code:p?.code||''}${n}`);
+   return <tr key={a.id}><td><strong>{a.origin} → {a.destination}</strong><small>{numbers.join(' / ')||'待编号'}</small></td><td><strong>{p?.name||'合作航司'}</strong><small>{p?.code}</small></td><td><span className="codeshare-pill">{a.role==='marketing'?'他航承运':'我方承运'}</span></td><td><strong>{rows.length?`${rows.reduce((n,r)=>n+r.weeklyFlights,0)} 班 / 周`:'—'}</strong><small>{types.join(' · ')||'计划待接入'}</small></td><td className="mono">{money(a.role==='marketing'?a.weeklyMarketingProfit:a.weeklyOperatingProfit)}</td><td><button className="text-button" disabled={!target} onClick={()=>onFlight(target.id)} aria-label={`查看共享航班 ${numbers[0]||a.origin}`}>查看<ArrowRight size={14}/></button></td></tr>;
+  })}</tbody></table></div>{!agreements.length&&<div className="all-clear">{c?.status==='available'?'暂无此类共享合作':'等待共享数据同步'}</div>}</div>}
+ </section>;
+}

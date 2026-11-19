@@ -1,0 +1,34 @@
+:root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; color: #dfebf7; background: #0b1320; }
+* { box-sizing: border-box; }
+body { width: 386px; margin: 0; font-size: 13px; line-height: 1.6; }
+header { display: flex; align-items: center; gap: 10px; padding: 22px 25px; border-bottom: 1px solid #213044; background: #101c2d; }
+.brand-mark { font-size: 35px; line-height: 1; color: #6ad6ef; }
+header strong { display: block; letter-spacing: 2px; font-size: 14px; }
+header div > span { display: block; color: #8093aa; font-size: 9px; letter-spacing: 1.7px; }
+.local-badge { margin-left: auto; padding: 3px 7px; color: #6ad6ef; border: 1px solid #285167; border-radius: 4px; font-size: 9px; letter-spacing: 1px; }
+main { padding: 25px; }
+.eyebrow { color: #7093b1; letter-spacing: 1.1px; font-size: 9px; }
+h1 { margin: 8px 0 9px; font-size: 24px; font-weight: 600; letter-spacing: -.4px; }
+.intro { color: #9dafc2; margin: 0 0 20px; }
+.scope { display: flex; gap: 10px; padding: 13px; background: #122238; border: 1px solid #263c53; border-radius: 6px; }
+.scope-dot { width: 6px; height: 6px; margin-top: 7px; flex-shrink: 0; background: #5ce2c2; border-radius: 50%; }
+.scope strong, .scope span, .scope code { display: block; }
+.scope strong { font-size: 11px; font-weight: 500; color: #cce7f3; }
+.scope div > span { color: #8ea8c1; font-size: 11px; margin-top: 3px; }
+code { font-family: Consolas, "SFMono-Regular", monospace; }
+.scope code { font-size: 9px; color: #6e91aa; margin-top: 2px; }
+form { margin-top: 23px; }
+label { display: block; color: #c0cede; margin-bottom: 7px; font-size: 12px; }
+input { display: block; width: 100%; padding: 11px 12px; background: #080f19; border: 1px solid #304054; border-radius: 5px; color: #d9ecfb; font-size: 13px; outline: none; font-family: inherit; }
+input:focus { border-color: #5bd4f0; box-shadow: 0 0 0 2px #5bd4f015; }
+input::placeholder { color: #596b80; }
+.field-hint { margin: 6px 0 17px; font-size: 10px; color: #687e95; }
+button { display: flex; width: 100%; justify-content: center; gap: 11px; border: 0; border-radius: 5px; background: #75d6eb; color: #0a2833; padding: 11px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+button:hover { background: #96e6f5; }
+button:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+button:disabled { opacity: .55; cursor: wait; }
+.status { min-height: 22px; font-size: 11px; color: #758aa0; margin: 12px 0 18px; }
+.status[data-kind="error"] { color: #f1ad9e; }
+.status[data-kind="success"] { color: #6ce2c1; }
+footer { border-top: 1px solid #203044; padding-top: 14px; font-size: 10px; color: #61788f; }
+footer code { color: #8ba1b6; }

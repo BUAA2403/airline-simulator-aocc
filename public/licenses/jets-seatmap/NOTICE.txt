@@ -1,0 +1,5 @@
+Jets Seatmap vector templates by Quicket GmbH / Kwiket.
+Source: https://github.com/Kwiket/jets-seatmap-react-lib-pub/tree/version-3
+License: Apache-2.0 (see LICENSE.txt).
+AOCC modifications: extracted inert SVG geometry; responsive layout, colors, data binding and seat placement replaced.
+No upstream API or passenger data services are used.

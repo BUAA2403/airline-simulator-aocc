@@ -1,0 +1,40 @@
+node_modules/
+dist/
+.data/
+.env
+.env.*
+!.env.example
+*.log
+*.sqlite*
+*.vault
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.apk*
+*.idsig
+__pycache__/
+
+# Local backups, exports, and validation captures.
+/backups/
+/exports/
+/*.pdf
+/docs/preview-*.png
+/docs/weekly-timetable-export.html
+/docs/AOCC-2-UPGRADE.md
+/docs/AOCC-3-VALIDATION.md
+/docs/AOCC-4-VALIDATION.md
+/docs/AOCC-10-AIRCRAFT-WEEK.md
+
+# Keep source notes, omit downloaded clients and captured data.
+/research/*
+!/research/apk/
+/research/apk/*
+!/research/apk/READONLY-DATA-RESEARCH.md
+!/research/web/
+/research/web/*
+!/research/web/PROTOCOL-NOTES.md
+
+# Original game images can be supplied locally.
+/public/game-assets/*
+!/public/game-assets/NOTICE.txt

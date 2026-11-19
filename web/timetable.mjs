@@ -1,0 +1,66 @@
+const DAY=86400000;
+const weekday=t=>(new Date(t).getUTCDay()+6)%7;
+const hhmm=t=>new Date(t).toISOString().slice(11,16);
+export const DAY_NAMES=['一','二','三','四','五','六','日'];
+export const PUBLICATION_SECTIONS=[{id:'own',label:'自营航班',en:'OWN FLIGHTS'},{id:'shared',label:'共享航班',en:'CODESHARE SERVICES'}];
+export function mergeAircraftAssignments(...lists){
+ const grouped=new Map();
+ for(const a of lists.flat()){
+  if(!grouped.has(a.aircraftId))grouped.set(a.aircraftId,{...a,days:[],scheduleKeys:[],weeklyFlights:0});
+  const target=grouped.get(a.aircraftId);target.weeklyFlights+=a.weeklyFlights;
+  target.days=[...new Set([...target.days,...a.days])].sort();target.scheduleKeys=[...new Set([...target.scheduleKeys,...a.scheduleKeys])];
+ }
+ return [...grouped.values()].sort((a,b)=>a.registration.localeCompare(b.registration));
+}
+export function buildTimetable(flights,aircraft,airports,{basis='local',splitAssignments=false}={}){
+ const fleet=new Map(aircraft.map(a=>[a.id,a])),stations=new Map(airports.flatMap(a=>[[a.id,a],[a.iata,a]])),groups=new Map(),seen=new Set();
+ const offset=a=>basis==='utc'?0:Number.isFinite(a?.utcOffsetSeconds)&&Math.abs(a.utcOffsetSeconds)<=50400?a.utcOffsetSeconds*1000:null;
+ for(const f of flights){
+  const dep=Date.parse(f.departure),arr=Date.parse(f.arrival);if(!Number.isFinite(dep)||!Number.isFinite(arr)||arr<=dep)continue;
+  const a=fleet.get(f.aircraftId),o=stations.get(f.origin),d=stations.get(f.destination),oz=offset(o),dz=offset(d);
+  const localDep=oz===null?null:dep+oz,localArr=dz===null?null:arr+dz;
+  const operatingDay=localDep===null?null:weekday(localDep),departure=localDep===null?'—':hhmm(localDep),arrival=localArr===null?'—':hhmm(localArr);
+  const arrivalDayOffset=localDep===null||localArr===null?null:Math.floor(localArr/DAY)-Math.floor(localDep/DAY);
+  const serviceKey=[f.scheduleId||f.id,f.aircraftId,f.direction||'',weekday(dep),hhmm(dep),hhmm(arr)].join('|');
+  if(seen.has(serviceKey))continue;seen.add(serviceKey);
+  const type=(a?.type||'待定')+(f.isCodeshare?` · ${f.operatorName||f.operatorCode} 承运`:''),classes=['first','biz','premEco','eco'].filter(k=>a?.cabins?.[k]?.numSeats).map(k=>({first:'F',biz:'J',premEco:'W',eco:'Y'}[k])).join('/');
+  const assignmentKey=JSON.stringify([f.scheduleId||f.id,f.aircraftId]);
+  const durationMinutes=Math.round((arr-dep)/60000),key=JSON.stringify([f.number,f.origin,f.destination,departure,arrival,arrivalDayOffset,type,durationMinutes,classes,...(splitAssignments?[assignmentKey,f.direction]:[])]);
+  if(!groups.has(key))groups.set(key,{key,number:f.number||'未编号',origin:f.origin,destination:f.destination,originCity:o?.city||f.origin,destinationCity:d?.city||f.destination,departure,arrival,arrivalDayOffset,type,classes,durationMinutes,days:[],registrations:[],assignments:[],weeklyFlights:0,scheduleKeys:[],timezoneKnown:oz!==null&&dz!==null});
+  const row=groups.get(key);row.assignmentKey=assignmentKey;row.scheduleId=f.scheduleId||f.id;row.childScheduleId=f.childScheduleId||'';row.aircraftId=f.aircraftId;row.scheduledDays=f.scheduledDays||[];row.direction=f.direction;row.weeklyFlights++;
+  if(operatingDay!==null&&!row.days.includes(operatingDay))row.days.push(operatingDay);
+  if(a?.registration&&!row.registrations.includes(a.registration))row.registrations.push(a.registration);
+  const task=[f.scheduleId||f.id,f.aircraftId,f.direction||''].join('|'),tasks=f.componentScheduleKeys||[task];for(const source of tasks)if(!row.scheduleKeys.includes(source))row.scheduleKeys.push(source);
+  let assignment=row.assignments.find(x=>x.aircraftId===f.aircraftId);
+  if(!assignment){assignment={aircraftId:f.aircraftId,registration:a?.registration||'注册号待定',type,days:[],weeklyFlights:0,scheduleKeys:[]};row.assignments.push(assignment);}
+  assignment.weeklyFlights++;
+  if(operatingDay!==null&&!assignment.days.includes(operatingDay))assignment.days.push(operatingDay);
+  for(const source of tasks)if(!assignment.scheduleKeys.includes(source))assignment.scheduleKeys.push(source);
+ }
+ return [...groups.values()].map(r=>({...r,days:r.days.sort(),registrations:r.registrations.sort(),assignments:r.assignments.map(a=>({...a,days:a.days.sort()})).sort((a,b)=>a.registration.localeCompare(b.registration))})).sort((a,b)=>a.origin.localeCompare(b.origin)||a.destination.localeCompare(b.destination)||a.departure.localeCompare(b.departure)||a.number.localeCompare(b.number,undefined,{numeric:true}));
+}
+export const operatingDaysText=days=>days.length===7?'每日':days.length?'周'+days.map(i=>DAY_NAMES[i]).join('、'):'运营日待定';
+export function equipmentLines(row){
+ if(!row.equipment||row.equipment.length<2)return [row.type];
+ const mixedClasses=new Set(row.equipment.map(e=>e.classes)).size>1;
+ return row.equipment.map(e=>`${e.type.replace(/^(Airbus|Boeing|Comac)\s+/,'')} · ${operatingDaysText(e.days)}${mixedClasses?' · '+e.classes:''}`);
+}
+export const durationText=m=>`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
+export const dayOffsetText=n=>n?`${n>0?'+':''}${n}`:'';
+export const timetableAirportCount=rows=>new Set(rows.flatMap(r=>[r.origin,r.destination,...String(r.via||'').split(' / ').filter(Boolean)])).size;
+export const publicationTime=t=>new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(t));
+export function timetableCsv(rows,basis){if(rows.some(r=>r.trafficSection)){const plain=timetableCsv(rows.map(({trafficSection,...r})=>r),basis);return [['承运类别',...plain[0]],...rows.map((r,i)=>[r.trafficSection==='shared'?'共享航班':'自营航班',...plain[i+1]])];}if(rows.some(r=>r.route)){const plain=timetableCsv(rows.map(({route,...r})=>r),basis);return [['基地','区域','往返航线','航段','经停点',...plain[0]],...rows.map((r,i)=>[r.base,r.region,r.route,r.legLabel,r.via||'',...plain[i+1]])];}return [['始发','目的地','航班号',...DAY_NAMES.map(d=>'周'+d),basis==='utc'?'计划离港 UTC':'当地离港',basis==='utc'?'计划到港 UTC':'当地到港','到达日差','航程时长','机型','舱等','每周班次','执飞机号'],...rows.map(r=>[r.origin,r.destination,r.number,...DAY_NAMES.map((_,i)=>r.days.includes(i)?i+1:''),r.departure,r.arrival,r.arrivalDayOffset,durationText(r.durationMinutes),equipmentLines(r).join(' / '),r.classes,r.weeklyFlights,r.registrations.join(' / ')])];}
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export const TIMETABLE_DOCUMENT_CSS=`
+@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;color:#172b40;background:#e8edf1;margin:0;padding:28px}.sheet{max-width:1180px;margin:auto;background:white;padding:36px 42px;box-shadow:0 3px 20px #1232}.masthead{display:flex;justify-content:space-between;align-items:flex-start;border-top:5px solid #16364a;border-bottom:1px solid #b7c7d0;padding:22px 0}.brand{font-size:25px;font-weight:700;letter-spacing:2px;color:#173a4e}.brand small{display:block;font-size:9px;font-weight:400;letter-spacing:2px;color:#608298;margin-top:7px}.title{text-align:right}.title h1{font-size:22px;margin:0 0 6px}.title p{font-size:10px;margin:4px 0;color:#617b8e}.summary{display:flex;gap:26px;font-size:11px;padding:17px 0;color:#507080}.summary b{color:#173a4e;font-size:14px;margin-right:5px}table{width:100%;border-collapse:collapse;font-size:10px;table-layout:auto}thead{display:table-header-group}th{background:#173a4e;color:#fff;text-align:left;padding:9px 6px;font-size:9px;font-weight:500;white-space:nowrap}.day{text-align:center;width:24px}td{padding:8px 6px;border-bottom:1px solid #dce5eb;white-space:nowrap}.equipment-line{line-height:1.7}.flight{font-weight:700;color:#173a4e}.time{font-family:Consolas,monospace;font-size:12px}.offset{font-size:8px;color:#327c75;vertical-align:super;margin-left:3px}.operates{color:#287c70;font-weight:700}.station td{background:#eaf1f4;color:#264b60;font-size:12px;font-weight:600;padding:11px 8px;border-top:2px solid #b9cdd6}.via-heading td{background:#f5f8f9;font-size:9px;color:#52788a}.via-heading{break-after:avoid}.route-heading td{background:#f1f5f7;font-weight:600;border-top:1px solid #b7cbd5;padding:9px 6px}.route-heading small{margin-left:14px;font-weight:400;color:#688797}.route-heading{break-after:avoid}.station small{font-size:10px;font-weight:400;margin-left:10px}.foot{border-top:1px solid #8eabbc;margin-top:18px;padding-top:12px;font-size:9px;line-height:1.8;color:#58788e}.city{font-size:8px;color:#79909f;margin-top:3px}.traffic-section{margin-top:26px}.traffic-heading{display:flex;justify-content:space-between;align-items:flex-end;border-top:3px solid #173a4e;padding:14px 0 12px;break-after:avoid}.traffic-heading h2{font-size:20px;letter-spacing:1px;margin:6px 0 0;color:#173a4e}.traffic-heading small{font-size:8px;letter-spacing:1.8px;color:#52788a}.traffic-heading>span{font-size:10px;color:#52788a}.traffic-section.shared .traffic-heading{border-top-color:#537e90}.print-action{display:block;margin:0 auto 18px;background:#173a4e;color:white;border:0;padding:10px 22px;cursor:pointer;border-radius:4px}tr{break-inside:avoid}tbody{break-inside:avoid}.station{break-after:avoid}sup{font-size:8px}@media print{body{background:white;padding:0}.sheet{max-width:none;padding:0;box-shadow:none}.print-action{display:none}th{print-color-adjust:exact;-webkit-print-color-adjust:exact}.station td{print-color-adjust:exact;-webkit-print-color-adjust:exact}a{color:inherit}}
+`;
+function timetableTableHtml(rows){
+ let origin='',section='',pair='',destination='';const body=rows.map(r=>{if(r.route){const header=(pair&&pair!==r.publicationKey?'</tbody><tbody>':'')+(section!==r.section?`<tr class="station"><td colspan="14">${esc(r.section)}</td></tr>`:'')+(destination!==(r.destinationKey||r.route)?`<tr class="route-heading"><td colspan="14">${esc(r.route)}<small>${esc(r.origin===r.base?r.originCity:r.destinationCity)} ↔ ${esc(r.origin===r.base?r.destinationCity:r.originCity)}</small></td></tr>`:'')+(r.via&&pair!==r.publicationKey?`<tr class="via-heading"><td colspan="14">经停 ${esc(r.destinationService?r.via:r.path)}</td></tr>`:'');section=r.section;pair=r.publicationKey;destination=r.destinationKey||r.route;return header+`<tr><td>${esc(r.legLabel)} · ${esc(r.origin)} → ${esc(r.destination)}</td><td class="flight">${esc(r.number)}</td>${DAY_NAMES.map((_,i)=>`<td class="day operates">${r.days.includes(i)?'●':'·'}</td>`).join('')}<td class="time">${esc(r.departure)}</td><td class="time">${esc(r.arrival)}<sup>${esc(dayOffsetText(r.arrivalDayOffset))}</sup></td><td>${esc(durationText(r.durationMinutes))}</td><td>${equipmentLines(r).map(e=>`<div class="equipment-line">${esc(e)}</div>`).join('')}</td><td>${esc(r.classes||'—')}</td></tr>`;}const station=r.origin!==origin?`<tr class="station"><td colspan="14">${esc(r.origin)}<small>${esc(r.originCity)} · 出港航班 / DEPARTURES</small></td></tr>`:'';origin=r.origin;return station+`<tr><td>${esc(r.destination)}<div class="city">${esc(r.destinationCity)}</div></td><td class="flight">${esc(r.number)}</td>${DAY_NAMES.map((_,i)=>`<td class="day operates">${r.days.includes(i)?'●':'·'}</td>`).join('')}<td class="time">${esc(r.departure)}</td><td class="time">${esc(r.arrival)}<sup>${esc(dayOffsetText(r.arrivalDayOffset))}</sup></td><td>${esc(durationText(r.durationMinutes))}</td><td>${equipmentLines(r).map(e=>`<div class="equipment-line">${esc(e)}</div>`).join('')}</td><td>${esc(r.classes||'—')}</td></tr>`;}).join('');
+ return `<table><thead><tr><th>航段</th><th>航班</th>${DAY_NAMES.map(d=>`<th class="day">${d}</th>`).join('')}<th>离港</th><th>到港</th><th>航程</th><th>机型</th><th>舱等</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+export function renderTimetableHtml({rows,airline='航空公司',basis='local',capturedAt=new Date().toISOString()}){
+ const sections=PUBLICATION_SECTIONS.map(s=>({...s,rows:rows.filter(r=>(r.trafficSection==='shared'?'shared':'own')===s.id)})).filter(s=>s.rows.length);
+ const tables=rows.some(r=>r.trafficSection)?sections.map(s=>`<section class="traffic-section ${s.id}"><header class="traffic-heading"><div><small>${s.en}</small><h2>${s.label}</h2></div><span>${new Set(s.rows.map(r=>r.destinationKey||r.route)).size} 目的地航线 · ${s.rows.reduce((n,r)=>n+r.weeklyFlights,0)} 班 / 周</span></header>${timetableTableHtml(s.rows)}</section>`).join(''):timetableTableHtml(rows);
+
+ return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(airline)} · 每周航班时刻表</title><style>${TIMETABLE_DOCUMENT_CSS}</style></head><body><main class="sheet"><header class="masthead"><div class="brand">✦ ${esc(airline)}<small>WEEKLY OPERATING SCHEDULE</small></div><div class="title"><h1>每周航班时刻表</h1><p>${rows.some(r=>r.route)?'按基地编排 · 往返编排 · ':''}${basis==='utc'?'UTC 时间':'机场当地时间'}</p><p>数据更新：${esc(publicationTime(capturedAt))}（北京时间）</p></div></header><div class="summary"><span><b>${rows.some(r=>r.route)?new Set(rows.map(r=>r.route)).size:rows.length}</b>${rows.some(r=>r.route)?'目的地航线':'航班时刻'}</span><span><b>${rows.reduce((n,r)=>n+r.weeklyFlights,0)}</b>班 / 周</span><span><b>${timetableAirportCount(rows)}</b>机场</span></div>${tables}<footer class="foot">${basis==='utc'?'所有时刻与运营日均为 UTC。':'离港与到港均为相应机场当地时刻，去返程运营日分别以各自始发地当地日期为准。'} +1 / +2 表示次日 / 第三日到达，−1 表示前一日到达。F 头等舱 · J 公务舱 · W 超级经济舱 · Y 经济舱。</footer></main></body></html>`;
+}

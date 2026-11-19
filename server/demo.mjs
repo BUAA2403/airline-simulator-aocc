@@ -1,0 +1,12 @@
+import { validateSnapshot } from './normalize.mjs';
+
+export function demoState() {
+  const now=new Date(), stamp=now.toISOString();
+  const airports=[['PVG','上海浦东','上海','CN',31.1443,121.8083],['HND','东京羽田','东京','JP',35.5494,139.7798],['SIN','新加坡樟宜','新加坡','SG',1.3644,103.9915],['HKG','香港国际','香港','CN',22.308,113.9185],['LHR','伦敦希思罗','伦敦','GB',51.47,-.4543],['JFK','纽约肯尼迪','纽约','US',40.6413,-73.7781],['LAX','洛杉矶国际','洛杉矶','US',33.9416,-118.4085],['CDG','巴黎戴高乐','巴黎','FR',49.0097,2.5479],['DXB','迪拜国际','迪拜','AE',25.2532,55.3657],['SYD','悉尼金斯福德','悉尼','AU',-33.9399,151.1753],['FRA','法兰克福','法兰克福','DE',50.0379,8.5622],['ICN','首尔仁川','首尔','KR',37.4602,126.4407]].map(([iata,name,city,country,lat,lon])=>({id:iata,iata,name,city,country,lat,lon}));
+  const pairs=[['PVG','LHR',12.2,.53],['PVG','JFK',14.5,.67],['HND','PVG',2.6,.42],['PVG','SIN',5.4,.74],['HKG','SYD',9.4,.32],['PVG','LAX',12.4,.83],['SIN','DXB',7.6,.58],['LHR','JFK',7.9,.21],['PVG','CDG',12.1,.44],['PVG','ICN',1.9,.64],['PVG','FRA',11.8,-.15],['PVG','HKG',2.7,-.3]];
+  const flights=pairs.map(([origin,destination,h,p],i)=>({id:`d-f${i}`,number:`PL${String(101+i*12)}`,aircraftId:`d-a${i}`,origin,destination,departure:new Date(+now-h*p*3600000).toISOString(),arrival:new Date(+now+h*(1-p)*3600000).toISOString(),status:p<0?'scheduled':'airborne',passengers:218+i*4,revenue:120000+i*3200}));
+  const aircraft=flights.map((f,i)=>({id:f.aircraftId,registration:`B-${String(8201+i)}`,type:i%3===0?'Airbus A350-900':i%3===1?'Boeing 787-9':'Airbus A321neo',status:f.status==='airborne'?'airborne':'ground',location:f.origin,flightId:f.id,capacity:300,condition:null,utilization:null}));
+  const routes=pairs.map(([origin,destination],i)=>({id:`d-r${i}`,origin,destination,flightsPerDay:i%3+1,loadFactor:.78+i*.012,revenue:330000+i*8200,cost:220000+i*5100}));
+  const snapshot=validateSnapshot({capturedAt:stamp,airline:{id:'demo',name:'示例航空',code:'PL',hub:'PVG',cash:482750000,currency:'USD'},airports,flights,aircraft,routes,metrics:{revenue:5876000},provenance:{notes:['示例数据，仅供界面预览。','所有地图位置由演示时刻表推算。']}},'demo',now);
+  return {connection:{status:'disconnected',source:'demo',lastSuccessAt:null,lastAttemptAt:null,nextSyncAt:null,intervalSeconds:60,message:'演示数据 · 未连接游戏',airlineId:null,hasCredentials:false},snapshot,history:Array.from({length:7},(_,i)=>({capturedAt:new Date(+now-(6-i)*86400000).toISOString(),cash:430000000+i*8791666,aircraftCount:12,flightCount:12,routeCount:12,revenue:4500000+i*229333})),logs:[]};
+}

@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Airline Simulator AOCC · 本地连接",
+  "version": "1.0.0",
+  "description": "在你点击连接时，将官方涂装编辑器的已登录会话直接交给本机 Airline Simulator AOCC。",
+  "permissions": ["scripting"],
+  "host_permissions": [
+    "https://livery.airline-simulator.com/*",
+    "http://127.0.0.1:3010/*"
+  ],
+  "action": {
+    "default_title": "连接 Airline Simulator AOCC",
+    "default_popup": "popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src http://127.0.0.1:3010"
+  }
+}
